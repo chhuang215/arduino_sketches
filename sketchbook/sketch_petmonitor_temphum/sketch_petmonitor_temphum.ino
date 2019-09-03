@@ -6,16 +6,19 @@ LiquidCrystal lcd(4, 5, 6, 7, 11, 12);
 Servo motor;
 dht11 DHT;
 
+// INTERVAL MILLISEC
 const int INTERVAL_BUTTON_BOUNCE = 150;
 const int INTERVAL_FEED_BOUNCE = 245;
 const int INTERVAL_SECOND = 1000;
 
+//PINS
 const int PIN_DHT = 3;
 const int PIN_MOTOR = 10;
 const int PIN_BTN_RIGHT = A5;
 const int PIN_SWITCH_DISPLAY = A4;
 const int PIN_BTN_LEFT = A3;
 const int PIN_AUTOFEED_INDICATOR_LED = 2;
+
 const int DEFAULT_HR_UNTIL_FEED = 12;
 
 const int DLastFeed = 0;
@@ -31,7 +34,7 @@ unsigned long previousMillisLeft = 0;
 unsigned long previousMillisDisplay = 0;
 unsigned long previousTimeMillis = 0;
 unsigned long feedMillis = 0;
-unsigned int lastFeedHour = 8761;
+unsigned int lastFeedHour = 0;
 unsigned int lastFeedMinute = 0;
 unsigned int lastFeedSecond = 0;
 
@@ -55,7 +58,7 @@ void setup() {
   
   lcd.begin(16,2);
   currentD = DTempHum;
-  displayLCD();
+ // displayLCD();
 
 }
 
@@ -131,7 +134,7 @@ void displayTempHum(){
   int tempF=(tempC * 9) / 5 + 32;
   int hum=DHT.humidity;
   lcd.setCursor(0,0);
-  lcd.print("Tem ");
+  //lcd.print("Tem ");
   lcd.print(tempC);
   lcd.write(0xDF);
   lcd.print("C ");
@@ -142,7 +145,14 @@ void displayTempHum(){
   lcd.setCursor(0,1);
   lcd.print("Hum ");
   lcd.print(hum);
-  lcd.print('%');
+  lcd.print("% ");
+}
+
+
+void checkLastFeedOverDay(){
+  if(lastFeedHour >= 24){
+    digitalWrite(PIN_AUTOFEED_INDICATOR_LED, 1);
+  }
 }
 
 void feederOpen(){
@@ -168,22 +178,23 @@ void loop() {
     previousMillisRight = currentMillis;
     if(digitalRead(PIN_BTN_RIGHT) == LOW){
       
-      if (currentD == 0){
+      if (currentD == DLastFeed || currentD == DTempHum){
         feedMillis = currentMillis;
-        feederOpen();  
+        feederOpen();
+        digitalWrite(PIN_AUTOFEED_INDICATOR_LED, 0);
       }
       
-      else if(currentD == 2){
-        if (!buttonDownRight){
-          buttonDownRight = true;
-          autofeed = !autofeed;
-          
-          digitalWrite(PIN_AUTOFEED_INDICATOR_LED, autofeed);
-          
-          lcd.clear();
-          displayLCD();  
-        }
-      }
+//      else if(currentD == 2){
+//        if (!buttonDownRight){
+//          buttonDownRight = true;
+//          autofeed = !autofeed;
+//          
+//          digitalWrite(PIN_AUTOFEED_INDICATOR_LED, autofeed);
+//          
+//          lcd.clear();
+//          displayLCD();  
+//        }
+//      }
     }
     else{
       buttonDownRight = false;  
@@ -194,7 +205,7 @@ void loop() {
   if(currentMillis - previousMillisLeft >= INTERVAL_BUTTON_BOUNCE){
     previousMillisLeft = currentMillis;
     if(digitalRead(PIN_BTN_LEFT) == LOW){
-      if (currentD == 2 && autofeed){
+      if (currentD == DAutoFeed && autofeed){
          if (!buttonDownLeft){
             buttonDownLeft = true;
     
@@ -203,6 +214,17 @@ void loop() {
             if (hourUntilNextAuto <= 0){
               hourUntilNextAuto = DEFAULT_HR_UNTIL_FEED;
             }
+            lcd.clear();
+            displayLCD();  
+            
+          }
+      }
+      else if (currentD == DLastFeed){
+         if (!buttonDownLeft){
+            buttonDownLeft = true;
+
+            lastFeedHour ++;
+           
             lcd.clear();
             displayLCD();  
             
@@ -220,13 +242,14 @@ void loop() {
     feederClose();
   }
 
-  /*DISPLAY SWITCHING*/
+  /*DISPLAY SWITCHING (MID BTN FN)*/
   if(currentMillis - previousMillisDisplay >= INTERVAL_BUTTON_BOUNCE){
     previousMillisDisplay = currentMillis;
    
     if(digitalRead(PIN_SWITCH_DISPLAY) == LOW){
       lcd.clear();
-      currentD = (currentD + 1) % 3;
+      //currentD = (currentD + 1) % 3; FOR AUTO FEED FUNCTION
+      currentD = (currentD + 1) % 2;
       displayLCD();
     }
   }
@@ -246,20 +269,23 @@ void loop() {
       lastFeedSecond = 0;
     }
 
-    if (autofeed) {
-      secondsPassed ++;
-      if(secondsPassed >= 3600){
-        secondsPassed = 0;
-        hourUntilNextAuto --;
-        if (hourUntilNextAuto <= 0){
-          
-          feedMillis = millis();
-          feederOpen();
+    checkLastFeedOverDay();
 
-          hourUntilNextAuto = DEFAULT_HR_UNTIL_FEED;
-        }
-      }
-    }
+/* Uncomment if autofeed function is used*/
+//    if (autofeed) {
+//      secondsPassed ++;
+//      if(secondsPassed >= 3600){
+//        secondsPassed = 0;
+//        hourUntilNextAuto --;
+//        if (hourUntilNextAuto <= 0){
+//          
+//          feedMillis = millis();
+//          feederOpen();
+//
+//          hourUntilNextAuto = DEFAULT_HR_UNTIL_FEED;
+//        }
+//      }
+//    }
     
     DHT.read(PIN_DHT);
     displayLCD();
